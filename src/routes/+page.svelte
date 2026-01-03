@@ -230,49 +230,110 @@ const erc725 = new ERC725(
   return txHash;
 }
 
+async function setPermissions(){
+  const scheme = [{
+    'name' : 'AddressPermissions:Permissions:<address>',
+    'key': "0x4b80742de2bf82acb3630000<address>",
+    'keyType': 'MappingWithGrouping',
+    'valueType': 'bytes32',
+    'valueContent': 'BitArray',
+  }];
 
-async function testChainId() {
-  try {
-    const chainId = await window.lukso.request({
-      method: 'eth_chainId'
+  const provider = new ethers.BrowserProvider(window.lukso);
+  const accounts = await provider.send('eth_requestAccounts', []);
+  const signer = await provider.getSigner();
+
+  const erc725 = new ERC725(
+    scheme,
+    accounts[0],
+    RPC_ENDPOINT,
+  );
+
+  const permissionSetAnyDataKey = erc725.encodePermissions({
+    SETDATA: true,
     });
 
-    console.log('chainId:', chainId);
-    alert(`✅ ChainId: ${chainId}`);
-  } catch (err) {
-    console.error(err);
-    alert('❌ eth_chainId fehlgeschlagen');
-  }
+  const permissionData = erc725.encodeData([
+      {
+    keyName: 'AddressPermissions:Permissions:<address>',
+    dynamicKeyParts: TRACKER_ADDRESS,
+    value: permissionSetAnyDataKey,
+  },
+  ], scheme);  
+
+  const myUP = new ethers.Contract(
+    accounts[0],
+    UniversalProfileArtifact.abi,
+    signer,
+  );
+
+  await myUP.setDataBatch(permissionData.keys, permissionData.values);
 }
 
-async function testSendTransaction() {
-  try {
-    const accounts = await window.lukso.request({
-      method: 'eth_requestAccounts'
-    });
 
-    const upAddress = accounts[0];
-    const CONTROLLER_ADDRESS = '0x69843800406517DADEf2B5F06A7D5eF81b44CE34';
+async function testSets(){
+  const scheme = [{
+    'name': 'AddressPermissions[]',
+    'key': '0xdf30dba06db6a30e65354d9a64c609861f089545ca58c6b4dbe31a5f338cb0e3',
+    'keyType': 'Array',
+    'valueType': 'address',
+    'valueContent': 'Address',
+  }];
 
+  const provider = new ethers.BrowserProvider(window.lukso);
+  const accounts = await provider.send('eth_requestAccounts', []);
+  const signer = await provider.getSigner();
 
-    const txHash = await window.lukso.request({
-      method: 'eth_sendTransaction',
-      params: [{
-        from: upAddress,
-        to: CONTROLLER_ADDRESS,
-        value: '0x0',
-        data: '0x'
-      }]
-    });
+  console.log(signer);
 
-    console.log('TX Hash:', txHash);
-    alert(`✅ Transaction sent:\n${txHash}`);
-  } catch (err) {
-    console.error(err);
-    alert('❌ eth_sendTransaction fehlgeschlagen');
+  console.log('PLATZ MINIMUM');
+
+  const erc725 = new ERC725(
+    scheme,
+    accounts[0],
+    RPC_ENDPOINT,
+  );
+
+   const addressPermissionsArrayValue = await erc725.getData(
+    'AddressPermissions[]',
+  );
+
+  let numberOfController = 0;
+
+  if(Array.isArray(addressPermissionsArrayValue.value)) {
+    numberOfController = addressPermissionsArrayValue.value.length;
   }
-}
 
+  console.log(numberOfController);
+
+  const check = erc725.encodeData(
+    [
+      {
+        keyName: 'AddressPermissions[]',
+        value: [TRACKER_ADDRESS],
+        startingIndex: numberOfController,
+        totalArrayLength: numberOfController + 1,
+      }
+    ],
+    scheme
+  );
+
+
+  console.log("check");
+  console.log(check);
+
+  const myUP = new ethers.Contract(
+    accounts[0],
+    UniversalProfileArtifact.abi,
+    signer,
+  );
+
+      console.log("MYUP");
+      console.log(myUP.runner);
+
+  await myUP.setDataBatch(check.keys,check.values);
+  
+}
 
 
   async function grantPermissions() {
@@ -313,14 +374,6 @@ async function testSendTransaction() {
     keyName: 'AddressPermissions:Permissions:<address>',
     dynamicKeyParts: TRACKER_ADDRESS,
     value: permissionSetAnyDataKey,
-  },
-  // The `AddressPermissions[]` array contains the list of permissioned addresses (= controllers)
-  // This adds the `newControllerAddress` in this list at the end (at the last index) and increment the array length.
-  {
-    keyName: 'AddressPermissions[]',
-    value: [TRACKER_ADDRESS],
-    startingIndex: numberOfController,
-    totalArrayLength: numberOfController + 1,
   },
   ]);
 
@@ -380,7 +433,7 @@ async function testSendTransaction() {
 
 <button
   aria-label="testPresence"
-  onclick={grantSetDataPermission}
+  onclick={setPermissions}
 >
   Test Presence
 </button>
@@ -388,7 +441,7 @@ async function testSendTransaction() {
 
 <button
   aria-label="readPresence"
-  onclick={readPerm}
+  onclick={testSets}
 >
   Test READ
 </button>
